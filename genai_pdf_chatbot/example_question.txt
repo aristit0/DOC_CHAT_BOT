@@ -1,0 +1,11 @@
+Assume your PDF is a technical report or user manual. These questions test both retrieval and reasoning:
+	1.	“What is the purpose of this document?”
+	2.	“Who is the intended audience for the instructions?”
+	3.	“List the steps to configure the device.”
+	4.	“Explain the troubleshooting process for error code E03.”
+	5.	“What are the recommended safety precautions mentioned?”
+	6.	“How often should maintenance be performed?”
+	7.	“Summarize the warranty terms.”
+	8.	“What is the default admin username and password?”
+	9.	“Which ports should be open for network access?”
+	10.	“Is this model compatible with the 2022 firmware update?”

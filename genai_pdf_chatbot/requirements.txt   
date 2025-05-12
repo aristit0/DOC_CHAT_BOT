@@ -1,0 +1,22 @@
+# Core packages
+flask
+jinja2
+requests
+
+# PDF handling
+PyMuPDF
+
+# Vector embedding
+sentence-transformers
+
+# Vector database (local)
+faiss-gpu  # Use faiss-gpu if needed and supported
+
+# Generation model
+transformers
+accelerate
+torch  # GPU-enabled version is preinstalled in CML usually
+
+# Utils
+numpy
+scikit-learn
