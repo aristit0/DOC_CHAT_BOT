@@ -11,14 +11,23 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 LLM_NAME = "tiiuae/falcon-7b-instruct"
 DEVICE = "cuda"
 
-# --- Loaders ---
-def load_index():
+# --- Load embedding model ONCE ---
+print("🔁 Loading embedding model...")
+embedding_model = SentenceTransformer(MODEL_NAME)
+embedding_model.to(DEVICE)
+
+# --- Load FAISS index + metadata ONCE ---
+def load_index_once():
+    print("📦 Loading FAISS index and metadata...")
     index = faiss.read_index(os.path.join(INDEX_DIR, "docs.index"))
     with open(os.path.join(INDEX_DIR, "metadata.pkl"), "rb") as f:
         data = pickle.load(f)
     return index, data["texts"], data["meta"]
 
-# --- LLM Pipeline ---
+index, texts, metadata = load_index_once()
+
+# --- Load LLM generator ONCE ---
+print("⚙️ Loading text generation model...")
 generator = pipeline("text-generation", model=LLM_NAME, device=0 if DEVICE == "cuda" else -1)
 
 def generate_response(prompt, max_tokens=256):
@@ -27,19 +36,15 @@ def generate_response(prompt, max_tokens=256):
 
 # --- Query Logic ---
 def get_answer_from_query(query, top_k=3):
-    model = SentenceTransformer(MODEL_NAME)
-    model.to(DEVICE)
-
-    index, texts, metadata = load_index()
-    query_vector = model.encode([query], device=DEVICE)
+    query_vector = embedding_model.encode([query], device=DEVICE)
     distances, indices = index.search(np.array(query_vector), top_k)
 
     context = "\n\n".join([texts[i] for i in indices[0]])
     prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer:"
     return generate_response(prompt)
 
-# --- Entry Point ---
-# Manual query input for CML notebook
-question = "What is the purpose of this document?"  # change this as needed
-answer = get_answer_from_query(question)
-print("\n🤖 Answer:\n" + answer)
+# --- Notebook usage (no input()) ---
+if __name__ == "__main__":
+    # You can call this manually like:
+    # get_answer_from_query("What is the purpose of this document?")
+    print("✅ Query interface loaded. Use `get_answer_from_query('your question')` to interact.")
