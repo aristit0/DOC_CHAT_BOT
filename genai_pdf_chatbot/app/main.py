@@ -2,7 +2,7 @@ import os
 import sys
 from flask import Flask, render_template, request, jsonify
 
-# ✅ Add your full project path manually (since __file__ doesn't work)
+# 👇 Make sure this matches your actual project root
 sys.path.append("/home/cdsw/genai_pdf_chatbot")
 
 from src.query_engine import get_answer_from_query
@@ -18,6 +18,7 @@ def chat():
     user_input = request.json.get("message", "")
     response = get_answer_from_query(user_input)
     return jsonify({"response": response})
+
 
 # Start the app in CML environment
 if __name__ == "__main__":
