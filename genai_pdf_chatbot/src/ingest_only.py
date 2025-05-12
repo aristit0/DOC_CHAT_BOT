@@ -3,18 +3,18 @@ import sys
 import fitz  # PyMuPDF
 import re
 import time
+import pickle
 import numpy as np
+import faiss
 from sentence_transformers import SentenceTransformer
 
-# Ensure `src/` path is included
-sys.path.append("/home/cdsw/genai_pdf_chatbot/")
-
-from src.vector_store import save_index
-
+# --- Config ---
 DOCUMENTS_DIR = "genai_pdf_chatbot/data/documents"
 INDEX_DIR = "genai_pdf_chatbot/embeddings/faiss_index"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+DEVICE = "cuda"
 
+# --- Functions ---
 def extract_text_from_pdf(file_path):
     doc = fitz.open(file_path)
     text = ""
@@ -23,8 +23,7 @@ def extract_text_from_pdf(file_path):
     return text
 
 def clean_text(text):
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 def chunk_text(text, max_tokens=256):
     sentences = text.split(". ")
@@ -39,51 +38,42 @@ def chunk_text(text, max_tokens=256):
         chunks.append(chunk.strip())
     return chunks
 
+def save_index(embeddings, texts, metadata):
+    os.makedirs(INDEX_DIR, exist_ok=True)
+    dim = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dim)
+    index.add(np.array(embeddings))
+
+    faiss.write_index(index, os.path.join(INDEX_DIR, "docs.index"))
+    with open(os.path.join(INDEX_DIR, "metadata.pkl"), "wb") as f:
+        pickle.dump({"texts": texts, "meta": metadata}, f)
+    print("💾 Saved FAISS index and metadata.")
+
 def process_documents():
-    print("⚙️ Loading embedding model...")
     model = SentenceTransformer(MODEL_NAME)
-    model.to("cuda")
+    model.to(DEVICE)
 
     texts, metadata = [], []
 
     for filename in os.listdir(DOCUMENTS_DIR):
         if filename.endswith(".pdf"):
             print(f"\n📄 Processing {filename}...")
-            full_path = os.path.join(DOCUMENTS_DIR, filename)
-            text = clean_text(extract_text_from_pdf(full_path))
-            print(f"📜 Extracted {len(text)} characters.")
+            text = clean_text(extract_text_from_pdf(os.path.join(DOCUMENTS_DIR, filename)))
             chunks = chunk_text(text)
-            print(f"✂️  Chunked into {len(chunks)} segments.")
+            print(f"🧠 {len(chunks)} chunks.")
             texts.extend(chunks)
             metadata.extend([{"source": filename}] * len(chunks))
 
-    print(f"\n🧠 Total chunks to embed: {len(texts)}")
     if not texts:
-        print("⚠️ No text found to embed. Exiting.")
+        print("⚠️ No text to embed.")
         return
 
-    print("🚀 Starting embedding on GPU...")
+    print(f"🚀 Embedding {len(texts)} chunks...")
     start = time.time()
-    try:
-        embeddings = model.encode(
-            texts,
-            batch_size=16,
-            show_progress_bar=True,
-            device="cuda"
-        )
-    except Exception as e:
-        print(f"🔥 GPU embedding failed: {e}")
-        print("🛑 Falling back to CPU...")
-        embeddings = model.encode(
-            texts,
-            batch_size=8,
-            show_progress_bar=True,
-            device="cpu"
-        )
+    embeddings = model.encode(texts, batch_size=16, show_progress_bar=True, device=DEVICE)
+    print(f"✅ Done in {round(time.time() - start, 2)}s.")
+    save_index(embeddings, texts, metadata)
 
-    print(f"✅ Embedding complete in {round(time.time() - start, 2)}s.")
-    save_index(embeddings, texts, metadata, INDEX_DIR)
-    print("💾 Index saved. Done!")
-
+# --- Entry point ---
 if __name__ == "__main__":
     process_documents()
