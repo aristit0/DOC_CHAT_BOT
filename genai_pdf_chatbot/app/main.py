@@ -8,7 +8,11 @@ sys.path.append("/home/cdsw/genai_pdf_chatbot")
 from src.query_engine import get_answer_from_query
 
 # ✅ Tell Flask where to find templates, since main.py is in /app/
-app = Flask(__name__, template_folder="../templates", static_folder="../static")
+app = Flask(
+    __name__,
+    template_folder="/home/cdsw/genai_pdf_chatbot/templates",
+    static_folder="/home/cdsw/genai_pdf_chatbot/static"
+)
 
 @app.route("/")
 def index():
