@@ -2,12 +2,13 @@ import os
 import sys
 from flask import Flask, render_template, request, jsonify
 
-# 👇 Make sure this matches your actual project root
+# Add your project root so you can import from src/
 sys.path.append("/home/cdsw/genai_pdf_chatbot")
 
 from src.query_engine import get_answer_from_query
 
-app = Flask(__name__)
+# ✅ Tell Flask where to find templates, since main.py is in /app/
+app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
 @app.route("/")
 def index():
@@ -19,7 +20,6 @@ def chat():
     response = get_answer_from_query(user_input)
     return jsonify({"response": response})
 
-
-# Start the app in CML environment
+# Run using CML App port
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=int(os.environ["CDSW_APP_PORT"]))
