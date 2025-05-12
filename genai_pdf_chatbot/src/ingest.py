@@ -1,8 +1,13 @@
 import os
+import sys
 import fitz  # PyMuPDF
 import re
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+# Make sure src/ is on the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from src.vector_store import save_index
 
 DOCUMENTS_DIR = "data/documents"
