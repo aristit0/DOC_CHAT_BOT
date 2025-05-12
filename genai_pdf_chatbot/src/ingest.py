@@ -6,7 +6,7 @@ import time
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-# Add src path manually for notebook or CML
+# Ensure `src/` path is included
 sys.path.append("/home/cdsw/genai_pdf_chatbot/")
 
 from src.vector_store import save_index
@@ -40,7 +40,7 @@ def chunk_text(text, max_tokens=256):
     return chunks
 
 def process_documents():
-    print("Loading embedding model...")
+    print("⚙️ Loading embedding model...")
     model = SentenceTransformer(MODEL_NAME)
     model.to("cuda")
 
@@ -52,16 +52,13 @@ def process_documents():
             full_path = os.path.join(DOCUMENTS_DIR, filename)
             text = clean_text(extract_text_from_pdf(full_path))
             print(f"📜 Extracted {len(text)} characters.")
-            
             chunks = chunk_text(text)
-            print(f"✂️ Chunked into {len(chunks)} segments.")
-            
+            print(f"✂️  Chunked into {len(chunks)} segments.")
             texts.extend(chunks)
             metadata.extend([{"source": filename}] * len(chunks))
 
     print(f"\n🧠 Total chunks to embed: {len(texts)}")
-
-    if len(texts) == 0:
+    if not texts:
         print("⚠️ No text found to embed. Exiting.")
         return
 
@@ -70,13 +67,13 @@ def process_documents():
     try:
         embeddings = model.encode(
             texts,
-            batch_size=16,  # Tune up for larger documents
+            batch_size=16,
             show_progress_bar=True,
             device="cuda"
         )
     except Exception as e:
         print(f"🔥 GPU embedding failed: {e}")
-        print("🛑 Trying fallback on CPU...")
+        print("🛑 Falling back to CPU...")
         embeddings = model.encode(
             texts,
             batch_size=8,
@@ -84,9 +81,9 @@ def process_documents():
             device="cpu"
         )
 
-    print(f"✅ Embedding complete in {round(time.time() - start, 2)} seconds.")
+    print(f"✅ Embedding complete in {round(time.time() - start, 2)}s.")
     save_index(embeddings, texts, metadata, INDEX_DIR)
-    print(f"💾 Saved FAISS index to {INDEX_DIR}")
+    print("💾 Index saved. Done!")
 
 if __name__ == "__main__":
     process_documents()
