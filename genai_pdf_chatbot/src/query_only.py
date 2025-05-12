@@ -39,11 +39,7 @@ def get_answer_from_query(query, top_k=3):
     return generate_response(prompt)
 
 # --- Entry Point ---
-if __name__ == "__main__":
-    print("💬 PDF ChatBot Interface")
-    while True:
-        user_input = input("\n❓ Ask a question (or type 'exit'): ").strip()
-        if user_input.lower() == "exit":
-            break
-        answer = get_answer_from_query(user_input)
-        print("\n🤖 Answer:\n" + answer)
+# Manual query input for CML notebook
+question = "What is the purpose of this document?"  # change this as needed
+answer = get_answer_from_query(question)
+print("\n🤖 Answer:\n" + answer)
