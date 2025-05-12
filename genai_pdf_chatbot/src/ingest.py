@@ -2,10 +2,11 @@ import os
 import sys
 import fitz  # PyMuPDF
 import re
+import time
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-# Add src path manually for notebook
+# Add src path manually for notebook or CML
 sys.path.append("/home/cdsw/genai_pdf_chatbot/")
 
 from src.vector_store import save_index
@@ -39,22 +40,53 @@ def chunk_text(text, max_tokens=256):
     return chunks
 
 def process_documents():
+    print("Loading embedding model...")
     model = SentenceTransformer(MODEL_NAME)
     model.to("cuda")
+
     texts, metadata = [], []
 
     for filename in os.listdir(DOCUMENTS_DIR):
         if filename.endswith(".pdf"):
-            print(f"Processing {filename}...")
+            print(f"\n📄 Processing {filename}...")
             full_path = os.path.join(DOCUMENTS_DIR, filename)
             text = clean_text(extract_text_from_pdf(full_path))
+            print(f"📜 Extracted {len(text)} characters.")
+            
             chunks = chunk_text(text)
-            for chunk in chunks:
-                texts.append(chunk)
-                metadata.append({"source": filename})
+            print(f"✂️ Chunked into {len(chunks)} segments.")
+            
+            texts.extend(chunks)
+            metadata.extend([{"source": filename}] * len(chunks))
 
-    embeddings = model.encode(texts, show_progress_bar=True, device="cuda")
+    print(f"\n🧠 Total chunks to embed: {len(texts)}")
+
+    if len(texts) == 0:
+        print("⚠️ No text found to embed. Exiting.")
+        return
+
+    print("🚀 Starting embedding on GPU...")
+    start = time.time()
+    try:
+        embeddings = model.encode(
+            texts,
+            batch_size=16,  # Tune up for larger documents
+            show_progress_bar=True,
+            device="cuda"
+        )
+    except Exception as e:
+        print(f"🔥 GPU embedding failed: {e}")
+        print("🛑 Trying fallback on CPU...")
+        embeddings = model.encode(
+            texts,
+            batch_size=8,
+            show_progress_bar=True,
+            device="cpu"
+        )
+
+    print(f"✅ Embedding complete in {round(time.time() - start, 2)} seconds.")
     save_index(embeddings, texts, metadata, INDEX_DIR)
+    print(f"💾 Saved FAISS index to {INDEX_DIR}")
 
 if __name__ == "__main__":
     process_documents()
