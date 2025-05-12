@@ -6,12 +6,12 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 # Add src path manually for notebook
-sys.path.append("/home/cdsw/genai_pdf_chatbot")
+sys.path.append("/home/cdsw/genai_pdf_chatbot/")
 
 from src.vector_store import save_index
 
-DOCUMENTS_DIR = "data/documents"
-INDEX_DIR = "embeddings/faiss_index"
+DOCUMENTS_DIR = "genai_pdf_chatbot/data/documents"
+INDEX_DIR = "genai_pdf_chatbot/embeddings/faiss_index"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 def extract_text_from_pdf(file_path):
