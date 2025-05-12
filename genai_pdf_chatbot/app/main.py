@@ -2,8 +2,8 @@ import os
 import sys
 from flask import Flask, render_template, request, jsonify
 
-# ✅ Add the path to enable importing from src/
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# ✅ Add your full project path manually (since __file__ doesn't work)
+sys.path.append("/home/cdsw/genai_pdf_chatbot")
 
 from src.query_engine import get_answer_from_query
 
