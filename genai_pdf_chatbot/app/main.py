@@ -9,15 +9,13 @@ import numpy as np
 import faiss
 from flask import Flask, render_template, request, jsonify
 from sentence_transformers import SentenceTransformer
-
-# Add your project root so you can import from src/
-sys.path.append("/home/cdsw/genai_pdf_chatbot")
-from src.query_engine import load_index  # reuse if needed
+from transformers import pipeline
 
 # === Configuration ===
 UPLOAD_FOLDER = "/home/cdsw/genai_pdf_chatbot/data/documents"
 INDEX_DIR = "/home/cdsw/genai_pdf_chatbot/embeddings/faiss_index"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+LLM_NAME = "tiiuae/falcon-7b-instruct"
 DEVICE = "cuda"
 
 # === Flask App Setup ===
@@ -31,6 +29,28 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # === Chat memory ===
 chat_history = []
 
+# --- Load Models Once ---
+print("🔁 Loading embedding model...")
+embedding_model = SentenceTransformer(MODEL_NAME)
+embedding_model.to(DEVICE)
+
+print("📦 Loading FAISS index and metadata...")
+def load_index():
+    index = faiss.read_index(os.path.join(INDEX_DIR, "docs.index"))
+    with open(os.path.join(INDEX_DIR, "metadata.pkl"), "rb") as f:
+        data = pickle.load(f)
+    return index, data["texts"], data["meta"]
+
+try:
+    index, texts, metadata = load_index()
+except Exception as e:
+    print(f"⚠️ FAISS index load failed: {e}")
+    index, texts, metadata = None, [], []
+
+print("⚙️ Loading text generation model...")
+generator = pipeline("text-generation", model=LLM_NAME, device=0 if DEVICE == "cuda" else -1)
+
+# === Web Routes ===
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -63,15 +83,16 @@ def upload():
     file.save(save_path)
     print(f"✅ Saved file to {save_path}")
 
-    # === Run ingestion inline ===
     status = process_documents()
     if status == "done":
+        global index, texts, metadata
+        index, texts, metadata = load_index()
         return jsonify({"message": "File uploaded and embedded ✅"}), 200
     else:
         return jsonify({"error": "Failed during embedding."}), 500
 
 
-# === FAISS Ingestion Logic ===
+# === Processing Functions ===
 def extract_text_from_pdf(file_path):
     doc = fitz.open(file_path)
     text = ""
@@ -110,44 +131,9 @@ def save_index(embeddings, texts, metadata):
     print("💾 Saved FAISS index and metadata.")
 
 
-def get_answer_from_query(query, top_k=3):
-    model = SentenceTransformer(MODEL_NAME)
-    model.to(DEVICE)
-
-    index, texts, metadata = load_index()
-    query_vector = model.encode([query], device=DEVICE)
-    distances, indices = index.search(np.array(query_vector), top_k)
-
-    threshold = 1.0  # only use close matches
-    retrieved = [(i, d) for i, d in zip(indices[0], distances[0]) if d < threshold]
-    if not retrieved:
-        return "❌ Sorry, I couldn't find anything relevant in your documents."
-
-    context = "\n\n".join([texts[i] for i, _ in retrieved])
-    prompt = f"""
-Use ONLY the information in the context below to answer the question.
-If the answer is not in the context, reply: "❌ Sorry, I couldn't find that in your documents."
-
-Context:
-{context}
-
-Question: {query}
-Answer:"""
-
-    return generate_response(prompt)
-
-
-def generate_response(prompt, max_tokens=256):
-    from transformers import pipeline
-    generator = pipeline("text-generation", model="tiiuae/falcon-7b-instruct", device=0 if DEVICE == "cuda" else -1)
-    output = generator(prompt, max_new_tokens=max_tokens, do_sample=True, temperature=0.7)
-    return output[0]["generated_text"].split("Answer:")[-1].strip()
-
-
 def process_documents():
     try:
-        model = SentenceTransformer(MODEL_NAME)
-        model.to(DEVICE)
+        model = embedding_model
         texts, metadata = [], []
 
         for filename in os.listdir(UPLOAD_FOLDER):
@@ -172,6 +158,36 @@ def process_documents():
     except Exception as e:
         print(f"❌ Error during processing: {e}")
         return "error"
+
+
+def generate_response(prompt, max_tokens=256):
+    output = generator(prompt, max_new_tokens=max_tokens, do_sample=True, temperature=0.7)
+    return output[0]["generated_text"].split("Answer:")[-1].strip()
+
+
+def get_answer_from_query(query, top_k=3):
+    if index is None:
+        return "❌ No embedded documents found. Please upload a PDF first."
+
+    query_vector = embedding_model.encode([query], device=DEVICE)
+    distances, indices = index.search(np.array(query_vector), top_k)
+
+    threshold = 1.0
+    retrieved = [(i, d) for i, d in zip(indices[0], distances[0]) if d < threshold]
+    if not retrieved:
+        return "❌ Sorry, I couldn't find anything relevant in your documents."
+
+    context = "\n\n".join([texts[i] for i, _ in retrieved])
+    prompt = f"""
+Use ONLY the information in the context below to answer the question.
+If the answer is not in the context, reply: "❌ Sorry, I couldn't find that in your documents."
+
+Context:
+{context}
+
+Question: {query}
+Answer:"""
+    return generate_response(prompt)
 
 
 # === Run in CML ===
