@@ -34,21 +34,22 @@ print("🔁 Loading embedding model...")
 embedding_model = SentenceTransformer(MODEL_NAME)
 embedding_model.to(DEVICE)
 
-print("📦 Loading FAISS index and metadata...")
+print("⚙️ Loading text generation model...")
+generator = pipeline("text-generation", model=LLM_NAME, device=0 if DEVICE == "cuda" else -1)
+
+# --- Define reusable index loader ---
 def load_index():
+    print("📦 Loading FAISS index and metadata...")
     index = faiss.read_index(os.path.join(INDEX_DIR, "docs.index"))
     with open(os.path.join(INDEX_DIR, "metadata.pkl"), "rb") as f:
         data = pickle.load(f)
     return index, data["texts"], data["meta"]
 
 try:
-    index, texts, metadata = load_index()
+    faiss_index, texts, metadata = load_index()
 except Exception as e:
     print(f"⚠️ FAISS index load failed: {e}")
-    index, texts, metadata = None, [], []
-
-print("⚙️ Loading text generation model...")
-generator = pipeline("text-generation", model=LLM_NAME, device=0 if DEVICE == "cuda" else -1)
+    faiss_index, texts, metadata = None, [], []
 
 # === Web Routes ===
 @app.route("/")
@@ -85,8 +86,8 @@ def upload():
 
     status = process_documents()
     if status == "done":
-        global index, texts, metadata
-        index, texts, metadata = load_index()
+        global faiss_index, texts, metadata
+        faiss_index, texts, metadata = load_index()
         return jsonify({"message": "File uploaded and embedded ✅"}), 200
     else:
         return jsonify({"error": "Failed during embedding."}), 500
@@ -166,11 +167,11 @@ def generate_response(prompt, max_tokens=256):
 
 
 def get_answer_from_query(query, top_k=3):
-    if index is None:
+    if faiss_index is None:
         return "❌ No embedded documents found. Please upload a PDF first."
 
     query_vector = embedding_model.encode([query], device=DEVICE)
-    distances, indices = index.search(np.array(query_vector), top_k)
+    distances, indices = faiss_index.search(np.array(query_vector), top_k)
 
     threshold = 1.0
     retrieved = [(i, d) for i, d in zip(indices[0], distances[0]) if d < threshold]
