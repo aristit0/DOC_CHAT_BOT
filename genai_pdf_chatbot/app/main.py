@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 # Add your project root so you can import from src/
 sys.path.append("/home/cdsw/genai_pdf_chatbot")
-from src.query_engine import get_answer_from_query
+from src.query_engine import load_index  # reuse if needed
 
 # === Configuration ===
 UPLOAD_FOLDER = "/home/cdsw/genai_pdf_chatbot/data/documents"
@@ -28,6 +28,8 @@ app = Flask(
 )
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# === Chat memory ===
+chat_history = []
 
 @app.route("/")
 def index():
@@ -38,7 +40,14 @@ def index():
 def chat():
     user_input = request.json.get("message", "")
     response = get_answer_from_query(user_input)
+    chat_history.append({"user": user_input, "bot": response})
     return jsonify({"response": response})
+
+
+@app.route("/clear_chat", methods=["POST"])
+def clear_chat():
+    chat_history.clear()
+    return jsonify({"message": "Chat cleared."})
 
 
 @app.route("/upload", methods=["POST"])
@@ -99,6 +108,40 @@ def save_index(embeddings, texts, metadata):
     with open(os.path.join(INDEX_DIR, "metadata.pkl"), "wb") as f:
         pickle.dump({"texts": texts, "meta": metadata}, f)
     print("💾 Saved FAISS index and metadata.")
+
+
+def get_answer_from_query(query, top_k=3):
+    model = SentenceTransformer(MODEL_NAME)
+    model.to(DEVICE)
+
+    index, texts, metadata = load_index()
+    query_vector = model.encode([query], device=DEVICE)
+    distances, indices = index.search(np.array(query_vector), top_k)
+
+    threshold = 1.0  # only use close matches
+    retrieved = [(i, d) for i, d in zip(indices[0], distances[0]) if d < threshold]
+    if not retrieved:
+        return "❌ Sorry, I couldn't find anything relevant in your documents."
+
+    context = "\n\n".join([texts[i] for i, _ in retrieved])
+    prompt = f"""
+Use ONLY the information in the context below to answer the question.
+If the answer is not in the context, reply: "❌ Sorry, I couldn't find that in your documents."
+
+Context:
+{context}
+
+Question: {query}
+Answer:"""
+
+    return generate_response(prompt)
+
+
+def generate_response(prompt, max_tokens=256):
+    from transformers import pipeline
+    generator = pipeline("text-generation", model="tiiuae/falcon-7b-instruct", device=0 if DEVICE == "cuda" else -1)
+    output = generator(prompt, max_new_tokens=max_tokens, do_sample=True, temperature=0.7)
+    return output[0]["generated_text"].split("Answer:")[-1].strip()
 
 
 def process_documents():

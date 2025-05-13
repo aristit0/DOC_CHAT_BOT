@@ -66,36 +66,51 @@ button:hover {
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
-  height: 280px;
+  height: 320px;
   overflow-y: auto;
   background: #fafafa;
   margin-bottom: 1rem;
 }
 
 .message {
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
-  border-radius: 6px;
-  max-width: 90%;
-  word-wrap: break-word;
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
 }
 
 .message.user {
+  justify-content: flex-end;
+}
+
+.message.user span {
   background: #0077cc;
   color: white;
-  margin-left: auto;
-  text-align: right;
+  padding: 0.5rem 0.8rem;
+  border-radius: 12px;
+  max-width: 80%;
 }
 
 .message.bot {
+  justify-content: flex-start;
+}
+
+.message.bot img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.message.bot span {
   background: #e8e8e8;
   color: #333;
-  margin-right: auto;
-  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-radius: 12px;
+  max-width: 80%;
 }
 
 .message.system {
+  text-align: center;
   font-style: italic;
   color: #666;
-  text-align: center;
 }

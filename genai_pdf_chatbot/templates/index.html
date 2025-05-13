@@ -27,6 +27,7 @@
       <form id="chat-form">
         <input type="text" id="chat-input" placeholder="Type your question..." required />
         <button type="submit">➡️</button>
+        <button id="clear-btn" type="button">🧹 Clear</button>
       </form>
     </section>
   </div>
@@ -35,13 +36,12 @@
     const chatWindow = document.getElementById("chat-window");
     const uploadStatus = document.getElementById("upload-status");
 
-    // Handle file upload and embedding
+    // File upload
     document.getElementById("upload-form").onsubmit = async (e) => {
       e.preventDefault();
       const formData = new FormData(document.getElementById("upload-form"));
 
       uploadStatus.innerText = "🔄 Uploading and embedding...";
-
       const res = await fetch("/upload", {
         method: "POST",
         body: formData
@@ -51,14 +51,14 @@
       uploadStatus.innerText = data.message || data.error || "Something went wrong.";
     };
 
-    // Handle chat question
+    // Chat submission
     document.getElementById("chat-form").onsubmit = async (e) => {
       e.preventDefault();
       const input = document.getElementById("chat-input");
       const message = input.value.trim();
       if (!message) return;
 
-      chatWindow.innerHTML += `<div class="message user">${message}</div>`;
+      chatWindow.innerHTML += `<div class="message user"><span>${message}</span></div>`;
       input.value = "";
 
       const res = await fetch("/chat", {
@@ -68,8 +68,18 @@
       });
 
       const data = await res.json();
-      chatWindow.innerHTML += `<div class="message bot">${data.response}</div>`;
+      chatWindow.innerHTML += `
+        <div class="message bot">
+          <img src="{{ url_for('static', filename='chatbot.png') }}" alt="bot" />
+          <span>${data.response}</span>
+        </div>`;
       chatWindow.scrollTop = chatWindow.scrollHeight;
+    };
+
+    // Clear chat
+    document.getElementById("clear-btn").onclick = async () => {
+      await fetch("/clear_chat", { method: "POST" });
+      chatWindow.innerHTML = '<div class="message system">💬 Ask me anything from your uploaded documents.</div>';
     };
   </script>
 </body>
