@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>GenAI PDF Chatbot</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -11,18 +11,18 @@
     <h1>📄 GenAI PDF Chatbot</h1>
 
     <section class="upload-box">
-      <h2>Upload PDF</h2>
+      <h2>Upload a PDF</h2>
       <form id="upload-form" enctype="multipart/form-data">
         <input type="file" name="file" accept=".pdf" required />
-        <button type="submit">📤 Upload & Trigger Ingest</button>
-        <p id="upload-status"></p>
+        <button type="submit">📤 Upload & Ingest</button>
       </form>
+      <p id="upload-status">📎 Waiting for file...</p>
     </section>
 
     <section class="chat-box">
-      <h2>Ask a Question</h2>
+      <h2>Ask About Your Document</h2>
       <div id="chat-window">
-        <div class="message system">Ask me anything about your documents.</div>
+        <div class="message system">💬 Ask me anything from your uploaded documents.</div>
       </div>
       <form id="chat-form">
         <input type="text" id="chat-input" placeholder="Type your question..." required />
@@ -32,39 +32,70 @@
   </div>
 
   <script>
-    // Chat submission
+    const chatWindow = document.getElementById("chat-window");
+    const uploadStatus = document.getElementById("upload-status");
+
+    // Poll for job completion
+    async function pollJobStatus(runId) {
+      let attempts = 0;
+      while (attempts < 30) {
+        const res = await fetch(`/job_status/${runId}`);
+        const data = await res.json();
+
+        if (data.status === "Success") {
+          uploadStatus.innerText = "✅ Ingest job completed!";
+          return;
+        } else if (data.status === "Failed") {
+          uploadStatus.innerText = "❌ Ingest job failed.";
+          return;
+        } else {
+          uploadStatus.innerText = `⏳ Ingest job status: ${data.status}`;
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        attempts++;
+      }
+      uploadStatus.innerText = "⚠️ Timed out waiting for job to complete.";
+    }
+
+    // Handle file upload
+    document.getElementById("upload-form").onsubmit = async (e) => {
+      e.preventDefault();
+      uploadStatus.innerText = "🔄 Uploading...";
+      const formData = new FormData(document.getElementById("upload-form"));
+
+      const res = await fetch("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+      uploadStatus.innerText = data.message || data.error;
+
+      if (data.run_id) {
+        pollJobStatus(data.run_id);
+      }
+    };
+
+    // Handle chat
     document.getElementById("chat-form").onsubmit = async (e) => {
       e.preventDefault();
       const input = document.getElementById("chat-input");
-      const msg = input.value.trim();
-      if (!msg) return;
+      const message = input.value.trim();
+      if (!message) return;
 
-      const chatWindow = document.getElementById("chat-window");
-      chatWindow.innerHTML += `<div class="message user">${msg}</div>`;
+      chatWindow.innerHTML += `<div class="message user">${message}</div>`;
       input.value = "";
 
       const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg }),
+        body: JSON.stringify({ message })
       });
 
       const data = await res.json();
       chatWindow.innerHTML += `<div class="message bot">${data.response}</div>`;
       chatWindow.scrollTop = chatWindow.scrollHeight;
-    };
-
-    // Upload form
-    document.getElementById("upload-form").onsubmit = async (e) => {
-      e.preventDefault();
-      const formData = new FormData(document.getElementById("upload-form"));
-      const res = await fetch("/upload", {
-        method: "POST",
-        body: formData
-      });
-      const data = await res.json();
-      document.getElementById("upload-status").innerText =
-        data.message || data.error || "Something went wrong.";
     };
   </script>
 </body>
