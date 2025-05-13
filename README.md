@@ -1,24 +1,54 @@
 # DOC_CHAT_BOT
-🧭 App Flow Summary
+# 🧠 GenAI PDF Chatbot
 
-1. PDF Upload
-	•	Users select a .pdf file and click [📤 Upload & Embed].
-	•	The file is sent to the backend via POST /upload.
-	•	A loading message (🔄 Uploading and embedding...) appears.
-	•	Once processed, the file input is cleared, and a success or error message is shown for 2 seconds.
+A simple web-based chatbot that allows users to upload PDFs, ask questions about their contents, and manually add knowledge. Built with Flask, JavaScript, and a friendly UI.
 
-2. Chat with Document
-	•	Users type a question in the chat input field.
-	•	On submitting, the question is:
-	•	Added to the chat window as a user message.
-	•	Sent via POST /chat as JSON to the backend.
-	•	The response is returned and displayed as a bot message, with an avatar.
-	•	Users can also click [🧹 Clear] to reset the chat via POST /clear_chat.
+---
 
-3. Add Manual Knowledge
-	•	Users type custom knowledge in a textarea and click [🧠 Submit].
-	•	The input is sent to POST /add_knowledge as JSON.
-	•	On success:
-	•	A confirmation message shows up.
-	•	The textarea is cleared.
-	•	The message fades after 2 seconds.
+## 🚀 Features
+
+- 📄 Upload and embed PDF documents
+- 💬 Ask natural language questions about uploaded files
+- 🧠 Manually input new knowledge via textarea
+- 📎 Clean and intuitive UI with status messages
+- 🧹 Option to clear chat history
+
+---
+
+## 📂 App Flow
+
+### 1. Upload PDF
+- Go to the **Upload a PDF** section.
+- Select a `.pdf` file and click **📤 Upload & Embed**.
+- The file is sent to the `/upload` endpoint via `POST`.
+- A loading message (`🔄 Uploading and embedding...`) appears.
+- On success, the input resets and shows a success message (auto-hides after 2 seconds).
+
+### 2. Chat with Your Document
+- Enter a question in the chat input field and click **➡️**.
+- The message appears in the chat window and is sent to `/chat` via `POST`.
+- The bot returns a response based on the document contents.
+- Click **🧹 Clear** to reset the conversation (calls `/clear_chat`).
+
+### 3. Add New Knowledge
+- Scroll to the **Add New Knowledge** section.
+- Type a fact, insight, or manual information into the textarea.
+- Click **🧠 Submit** to send it to `/add_knowledge` as JSON.
+- A confirmation message will show and the input will be cleared.
+- Status auto-clears after 2 seconds.
+
+---
+
+## 📁 Project Structure (Frontend)
+---
+
+## 🛠️ Requirements (Backend)
+
+- Python 3.9+
+- Flask
+- Flask-CORS
+- PDF parser (like PyMuPDF or PDFMiner)
+- Embedding + Vector search (e.g. FAISS)
+- OpenAI or local LLM for response generation
+
+---
