@@ -1,18 +1,24 @@
 import os
 import sys
+import time
+import re
+import pickle
 import requests
+import fitz  # PyMuPDF
+import numpy as np
+import faiss
 from flask import Flask, render_template, request, jsonify
+from sentence_transformers import SentenceTransformer
 
 # Add your project root so you can import from src/
 sys.path.append("/home/cdsw/genai_pdf_chatbot")
-
 from src.query_engine import get_answer_from_query
 
 # === Configuration ===
 UPLOAD_FOLDER = "/home/cdsw/genai_pdf_chatbot/data/documents"
-CDSW_DOMAIN = os.getenv("CDSW_DOMAIN")       # e.g., ml-yourcluster.cloudera.site
-API_KEY = os.getenv("CDSW_API_KEY")          # from your user API keys
-INGEST_JOB_ID = "m4in-jwsz-ltn3-vq2u"        # your job ID from Cloudera UI
+INDEX_DIR = "/home/cdsw/genai_pdf_chatbot/embeddings/faiss_index"
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+DEVICE = "cuda"
 
 # === Flask App Setup ===
 app = Flask(
@@ -48,52 +54,81 @@ def upload():
     file.save(save_path)
     print(f"✅ Saved file to {save_path}")
 
-    # Trigger the CML job
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    trigger_url = f"https://{CDSW_DOMAIN}/api/v2/jobs/{INGEST_JOB_ID}/runs"
-    res = requests.post(trigger_url, headers=headers)
-
-    if res.status_code in [200, 201]:
-        try:
-            run_id = res.json().get("id")
-        except Exception:
-            run_id = None
-
-        return jsonify({
-            "message": "File uploaded. Ingest job started ✅",
-            "run_id": run_id
-        }), 200
+    # === Run ingestion inline ===
+    status = process_documents()
+    if status == "done":
+        return jsonify({"message": "File uploaded and embedded ✅"}), 200
     else:
-        try:
-            error_details = res.json()
-        except Exception:
-            error_details = res.text or "No response body"
-
-        return jsonify({
-            "error": "Upload succeeded but job trigger failed",
-            "status": res.status_code,
-            "details": error_details
-        }), 500
+        return jsonify({"error": "Failed during embedding."}), 500
 
 
-@app.route("/job_status/<run_id>")
-def job_status(run_id):
-    status_url = f"https://{CDSW_DOMAIN}/api/v2/runs/{run_id}"
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    res = requests.get(status_url, headers=headers)
+# === FAISS Ingestion Logic ===
+def extract_text_from_pdf(file_path):
+    doc = fitz.open(file_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
 
-    if res.status_code == 200:
-        data = res.json()
-        return jsonify({
-            "status": data.get("status"),
-            "start_time": data.get("start_time"),
-            "end_time": data.get("end_time")
-        })
-    else:
-        return jsonify({
-            "error": f"Failed to fetch status for run {run_id}",
-            "details": res.text
-        }), 500
+
+def clean_text(text):
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def chunk_text(text, max_tokens=256):
+    sentences = text.split(". ")
+    chunks, chunk = [], ""
+    for sentence in sentences:
+        if len(chunk) + len(sentence) < max_tokens:
+            chunk += sentence + ". "
+        else:
+            chunks.append(chunk.strip())
+            chunk = sentence + ". "
+    if chunk:
+        chunks.append(chunk.strip())
+    return chunks
+
+
+def save_index(embeddings, texts, metadata):
+    os.makedirs(INDEX_DIR, exist_ok=True)
+    dim = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dim)
+    index.add(np.array(embeddings))
+
+    faiss.write_index(index, os.path.join(INDEX_DIR, "docs.index"))
+    with open(os.path.join(INDEX_DIR, "metadata.pkl"), "wb") as f:
+        pickle.dump({"texts": texts, "meta": metadata}, f)
+    print("💾 Saved FAISS index and metadata.")
+
+
+def process_documents():
+    try:
+        model = SentenceTransformer(MODEL_NAME)
+        model.to(DEVICE)
+        texts, metadata = [], []
+
+        for filename in os.listdir(UPLOAD_FOLDER):
+            if filename.endswith(".pdf"):
+                print(f"\n📄 Processing {filename}...")
+                text = clean_text(extract_text_from_pdf(os.path.join(UPLOAD_FOLDER, filename)))
+                chunks = chunk_text(text)
+                print(f"🧠 {len(chunks)} chunks.")
+                texts.extend(chunks)
+                metadata.extend([{"source": filename}] * len(chunks))
+
+        if not texts:
+            print("⚠️ No text to embed.")
+            return "empty"
+
+        print(f"🚀 Embedding {len(texts)} chunks...")
+        start = time.time()
+        embeddings = model.encode(texts, batch_size=16, show_progress_bar=True, device=DEVICE)
+        print(f"✅ Done in {round(time.time() - start, 2)}s.")
+        save_index(embeddings, texts, metadata)
+        return "done"
+    except Exception as e:
+        print(f"❌ Error during processing: {e}")
+        return "error"
 
 
 # === Run in CML ===
