@@ -46,7 +46,9 @@
     // Upload file
     document.getElementById("upload-form").onsubmit = async (e) => {
       e.preventDefault();
-      const formData = new FormData(document.getElementById("upload-form"));
+      const uploadForm = document.getElementById("upload-form");
+      const fileInput = uploadForm.querySelector('input[type="file"]');
+      const formData = new FormData(uploadForm);
       uploadStatus.innerText = "🔄 Uploading and embedding...";
 
       const res = await fetch("/upload", {
@@ -56,6 +58,14 @@
 
       const data = await res.json();
       uploadStatus.innerText = data.message || data.error || "Something went wrong.";
+
+      if (data.message) {
+        fileInput.value = ""; // ✅ Clear file input
+      }
+
+      setTimeout(() => {
+        uploadStatus.innerText = "📎 Waiting for file...";
+      }, 2000);
     };
 
     // Chat
@@ -91,8 +101,10 @@
 
     // Submit manual knowledge
     async function submitKnowledge() {
-      const content = document.getElementById("manual-input").value.trim();
+      const textarea = document.getElementById("manual-input");
+      const content = textarea.value.trim();
       const status = document.getElementById("manual-status");
+
       if (!content) {
         status.innerText = "⚠️ Please type something first.";
         return;
@@ -106,6 +118,14 @@
 
       const data = await res.json();
       status.innerText = data.message || data.error || "Something went wrong.";
+
+      if (data.message) {
+        textarea.value = ""; // ✅ Clear textarea
+      }
+
+      setTimeout(() => {
+        status.innerText = "";
+      }, 2000);
     }
   </script>
 </body>
