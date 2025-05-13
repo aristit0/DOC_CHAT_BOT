@@ -40,7 +40,14 @@ A simple web-based chatbot that allows users to upload PDFs, ask questions about
 ---
 
 ## 📁 Project Structure (Frontend)
+/templates/
+└── index.html          # Main HTML file with upload, chat, and manual input sections
+/static/
+├── style.css           # Clean and responsive styles
+└── chatbot.png         # Bot avatar image (optional)
+/app.py (or main Flask backend)
 ---
+
 
 ## 🛠️ Requirements (Backend)
 
