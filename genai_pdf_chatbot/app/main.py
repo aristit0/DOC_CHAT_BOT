@@ -93,6 +93,30 @@ def upload():
         return jsonify({"error": "Failed during embedding."}), 500
 
 
+@app.route("/add_knowledge", methods=["POST"])
+def add_knowledge():
+    content = request.json.get("text", "").strip()
+    if not content:
+        return jsonify({"error": "Empty input"}), 400
+
+    chunk = clean_text(content)
+    embedding = embedding_model.encode([chunk], device=DEVICE)
+
+    global faiss_index, texts, metadata
+    if faiss_index is None:
+        dim = embedding.shape[1]
+        faiss_index = faiss.IndexFlatL2(dim)
+        texts = []
+        metadata = []
+
+    faiss_index.add(np.array(embedding))
+    texts.append(chunk)
+    metadata.append({"source": "manual_input"})
+
+    save_index(np.array([embedding[0]]), [chunk], [metadata[-1]])
+    return jsonify({"message": "🧠 Knowledge added successfully!"})
+
+
 # === Processing Functions ===
 def extract_text_from_pdf(file_path):
     doc = fitz.open(file_path)
@@ -106,29 +130,27 @@ def clean_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def chunk_text(text, max_tokens=256):
-    sentences = text.split(". ")
-    chunks, chunk = [], ""
-    for sentence in sentences:
-        if len(chunk) + len(sentence) < max_tokens:
-            chunk += sentence + ". "
-        else:
-            chunks.append(chunk.strip())
-            chunk = sentence + ". "
-    if chunk:
-        chunks.append(chunk.strip())
+def chunk_text(text, max_tokens=512, overlap=50):
+    words = text.split()
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = start + max_tokens
+        chunk = " ".join(words[start:end])
+        chunks.append(chunk)
+        start += max_tokens - overlap
     return chunks
 
 
-def save_index(embeddings, texts, metadata):
+def save_index(embeddings, text_list, meta_list):
     os.makedirs(INDEX_DIR, exist_ok=True)
     dim = embeddings.shape[1]
     index = faiss.IndexFlatL2(dim)
-    index.add(np.array(embeddings))
+    index.add(embeddings)
 
     faiss.write_index(index, os.path.join(INDEX_DIR, "docs.index"))
     with open(os.path.join(INDEX_DIR, "metadata.pkl"), "wb") as f:
-        pickle.dump({"texts": texts, "meta": metadata}, f)
+        pickle.dump({"texts": text_list, "meta": meta_list}, f)
     print("💾 Saved FAISS index and metadata.")
 
 
@@ -173,7 +195,7 @@ def get_answer_from_query(query, top_k=3):
     query_vector = embedding_model.encode([query], device=DEVICE)
     distances, indices = faiss_index.search(np.array(query_vector), top_k)
 
-    threshold = 1.0
+    threshold = 1.5
     retrieved = [(i, d) for i, d in zip(indices[0], distances[0]) if d < threshold]
     if not retrieved:
         return "❌ Sorry, I couldn't find anything relevant in your documents."

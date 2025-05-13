@@ -30,18 +30,25 @@
         <button id="clear-btn" type="button">🧹 Clear</button>
       </form>
     </section>
+
+    <section class="add-knowledge">
+      <h2>Add New Knowledge</h2>
+      <textarea id="manual-input" rows="4" placeholder="Type new facts or information here..."></textarea>
+      <button type="button" onclick="submitKnowledge()">🧠 Submit</button>
+      <p id="manual-status"></p>
+    </section>
   </div>
 
   <script>
     const chatWindow = document.getElementById("chat-window");
     const uploadStatus = document.getElementById("upload-status");
 
-    // File upload
+    // Upload file
     document.getElementById("upload-form").onsubmit = async (e) => {
       e.preventDefault();
       const formData = new FormData(document.getElementById("upload-form"));
-
       uploadStatus.innerText = "🔄 Uploading and embedding...";
+
       const res = await fetch("/upload", {
         method: "POST",
         body: formData
@@ -51,7 +58,7 @@
       uploadStatus.innerText = data.message || data.error || "Something went wrong.";
     };
 
-    // Chat submission
+    // Chat
     document.getElementById("chat-form").onsubmit = async (e) => {
       e.preventDefault();
       const input = document.getElementById("chat-input");
@@ -81,6 +88,25 @@
       await fetch("/clear_chat", { method: "POST" });
       chatWindow.innerHTML = '<div class="message system">💬 Ask me anything from your uploaded documents.</div>';
     };
+
+    // Submit manual knowledge
+    async function submitKnowledge() {
+      const content = document.getElementById("manual-input").value.trim();
+      const status = document.getElementById("manual-status");
+      if (!content) {
+        status.innerText = "⚠️ Please type something first.";
+        return;
+      }
+
+      const res = await fetch("/add_knowledge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content })
+      });
+
+      const data = await res.json();
+      status.innerText = data.message || data.error || "Something went wrong.";
+    }
   </script>
 </body>
 </html>

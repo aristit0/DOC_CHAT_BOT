@@ -19,7 +19,7 @@ h1, h2 {
   margin-bottom: 1rem;
 }
 
-.upload-box, .chat-box {
+.upload-box, .chat-box, .add-knowledge {
   margin-top: 2rem;
 }
 
@@ -55,7 +55,8 @@ button:hover {
   background: #005fa3;
 }
 
-#upload-status {
+#upload-status,
+#manual-status {
   margin-top: 0.5rem;
   font-style: italic;
   font-size: 0.95rem;
@@ -113,4 +114,22 @@ button:hover {
   text-align: center;
   font-style: italic;
   color: #666;
+}
+
+.add-knowledge textarea {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  resize: vertical;
+  margin-bottom: 0.5rem;
+}
+
+.add-knowledge button {
+  background: #00aa55;
+}
+
+.add-knowledge button:hover {
+  background: #008944;
 }
